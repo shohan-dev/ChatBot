@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+google-generativeai
+python-dotenv
+jinja2
+pydantic
+langchain==0.2.16
+langchain-community==0.2.16
+langchain-core==0.2.38
+langchain-google-genai==1.0.10
+httpx
+sqlalchemy

@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ISP PayBD Assistant</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --bg-color: #f3f4f6;
+            --chat-bg: #ffffff;
+            --user-msg-bg: #2563eb;
+            --user-msg-text: #ffffff;
+            --ai-msg-bg: #e5e7eb;
+            --ai-msg-text: #1f2937;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .chat-container {
+            width: 100%;
+            max-width: 600px;
+            height: 80vh;
+            background-color: var(--chat-bg);
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 20px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-header h1 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .history-link {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: background 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .history-link:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            line-height: 1.5;
+            font-size: 0.95rem;
+        }
+
+        .message.user {
+            align-self: flex-end;
+            background-color: var(--user-msg-bg);
+            color: var(--user-msg-text);
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.ai {
+            align-self: flex-start;
+            background-color: var(--ai-msg-bg);
+            color: var(--ai-msg-text);
+            border-bottom-left-radius: 4px;
+        }
+
+        .input-area {
+            padding: 20px;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            gap: 10px;
+            background-color: white;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            outline: none;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--primary-color);
+        }
+
+        button {
+            padding: 12px 24px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #1d4ed8;
+        }
+
+        button:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        .typing-indicator {
+            font-size: 0.8rem;
+            color: #6b7280;
+            margin-left: 10px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h1>ISP PayBD Support</h1>
+            
+        </div>
+        <div class="chat-messages" id="chatMessages">
+            <div class="message ai">
+                Hello! I'm your ISP PayBD AI Assistant. How can I help you with your internet service today?
+            </div>
+        </div>
+        <div class="typing-indicator" id="typingIndicator">AI is typing...</div>
+        <div class="input-area">
+            <input type="text" id="userInput" placeholder="Type your message..." onkeypress="handleKeyPress(event)">
+            <button onclick="sendMessage()" id="sendBtn">Send</button>
+        </div>
+    </div>
+
+    <script>
+        const chatMessages = document.getElementById('chatMessages');
+        const userInput = document.getElementById('userInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const typingIndicator = document.getElementById('typingIndicator');
+        
+        // Store conversation ID (will be set after first message)
+        let conversationId = null;
+
+        // Get URL parameters for user_id and language
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('user_id') || null;  // null if not provided
+        const language = urlParams.get('language') || 'EN';
+
+        // Update greeting based on language
+        if (language === 'BN') {
+            const greeting = chatMessages.querySelector('.message.ai');
+            if (greeting) {
+                greeting.innerHTML = 'হ্যালো! আমি আপনার ISP PayBD AI সহায়ক। আজ আপনার ইন্টারনেট সেবা নিয়ে কীভাবে সাহায্য করতে পারি?';
+            }
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        async function sendMessage() {
+            const message = userInput.value.trim();
+            if (!message) return;
+
+            // Add user message
+            addMessage(message, 'user');
+            userInput.value = '';
+            userInput.disabled = true;
+            sendBtn.disabled = true;
+            typingIndicator.style.display = 'block';
+
+            try {
+                // Build request payload with conversation_id (if exists), user_id, and language
+                const payload = { 
+                    message: message,
+                    language: language
+                };
+                
+                // Add conversation_id if we have one from previous messages
+                if (conversationId) {
+                    payload.conversation_id = conversationId;
+                }
+                
+                // Add user_id if available
+                if (userId) {
+                    payload.user_id = userId;
+                }
+
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+
+                const data = await response.json();
+                
+                // Store conversation_id for subsequent messages
+                if (data.conversation_id && !conversationId) {
+                    conversationId = data.conversation_id;
+                    console.log('Conversation ID:', conversationId);
+                }
+                
+                addMessage(data.response, 'ai');
+            } catch (error) {
+                console.error('Error:', error);
+                const errorMsg = language === 'BN' 
+                    ? "দুঃখিত, সার্ভারের সাথে সংযোগে সমস্যা হচ্ছে।"
+                    : "Sorry, I'm having trouble connecting to the server right now.";
+                addMessage(errorMsg, 'ai');
+            } finally {
+                userInput.disabled = false;
+                sendBtn.disabled = false;
+                typingIndicator.style.display = 'none';
+                userInput.focus();
+            }
+        }
+
+        function addMessage(text, sender) {
+            const div = document.createElement('div');
+            div.className = `message ${sender}`;
+            if (sender === 'ai') {
+                div.innerHTML = marked.parse(text);
+            } else {
+                div.textContent = text;
+            }
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+    </script>
+</body>
+</html>

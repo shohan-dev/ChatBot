@@ -1,0 +1,10 @@
+# venv directory
+venv/
+
+# Environment variable files
+.env
+.env.local
+
+# Python cache
+__pycache__/
+*.pyc
