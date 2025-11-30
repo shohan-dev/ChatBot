@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, Request, Query
 from sqlalchemy.orm import Session
+from langchain_core.messages import HumanMessage, AIMessage
 from app.models.schemas import ChatRequest, ChatResponse
 from app.services.agent import process_chat
 from app.db.models import get_db
@@ -43,6 +44,24 @@ async def chat_endpoint(
             ip_address=http_request.client.host if http_request.client else None
         )
         
+        # Fetch recent chat history for context
+        chat_history = []
+        if conversation.conversation_id:
+            # Get last 10 messages (excluding the one we are about to add)
+            recent_messages = ChatHistoryManager.get_conversation_messages(
+                db=db,
+                conversation_id=conversation.conversation_id,
+                limit=10
+            )
+            
+            # Convert to LangChain format
+            # Note: get_conversation_messages returns oldest first due to order_by(Message.message_index)
+            for msg in recent_messages.get("messages", []):
+                if msg["role"] == "user":
+                    chat_history.append(HumanMessage(content=msg["content"]))
+                elif msg["role"] == "assistant":
+                    chat_history.append(AIMessage(content=msg["content"]))
+        
         # Save user message to database
         # Classify message level based on content
         from app.services.agent import history_manager
@@ -67,7 +86,8 @@ async def chat_endpoint(
             message=request.message,
             conversation_id=conversation.conversation_id,
             user_id=request.user_id,
-            language=request.language
+            language=request.language,
+            chat_history=chat_history
         )
         
         # Extract reply and metadata from AI response

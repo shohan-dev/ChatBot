@@ -10,3 +10,16 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     response: str
     conversation_id: Optional[str] = None  # Return conversation ID for continuity
+
+class TicketCreate(BaseModel):
+    user_id: str
+    subject: str
+    category: str
+    priority: str
+    message: str
+
+class TicketResponse(BaseModel):
+    ticket_id: int
+    status: str
+    message: str
+

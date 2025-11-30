@@ -5,6 +5,7 @@ from typing import Optional, Dict, List
 ISP_API_BASE_URL = "https://isppaybd.com/api/users"
 ISP_SUBSCRIPTION_URL = "https://isppaybd.com/api/subscription_index"
 ISP_MOVIE_SERVERS_URL = "https://isppaybd.com/api/movieservers"
+ISP_CREATE_TICKET_URL = "https://isppaybd.com/api/create_ticket"
 
 def fetch_user_from_api(user_id: str) -> Optional[Dict]:
     """
@@ -292,3 +293,59 @@ def get_movie_servers(user_id: str) -> Dict:
             "status": "error",
             "message": f"Error: {str(e)}"
         }
+
+def create_support_ticket(user_id: str, subject: str, category: str, priority: str, message: str) -> Dict:
+    """
+    Create a support ticket via the external ISP API.
+    
+    Args:
+        user_id: The user ID
+        subject: Ticket subject
+        category: Ticket category
+        priority: Ticket priority
+        message: Ticket message content
+        
+    Returns:
+        API response dictionary
+    """
+    try:
+        # The API expects parameters in the query string or body. 
+        # Based on the example: {{Base_url}}/create_ticket?user_id=...
+        # We will send them as query parameters in a POST request.
+        
+        # Enhance message to indicate it was created by AI for this specific user
+        formatted_message = f"Ticket created by AI Assistant for User {user_id}.\n\nUser Issue: {message}"
+        
+        params = {
+            "user_id": user_id,
+            "subject": subject,
+            "category": category,
+            "priority": priority,
+            "message": formatted_message
+        }
+        
+        print(f"🎫 Creating ticket via API: {ISP_CREATE_TICKET_URL}")
+        print(f"📝 Params: {params}")
+        
+        response = httpx.post(ISP_CREATE_TICKET_URL, params=params, timeout=15.0)
+        
+        if response.status_code == 200:
+            print(f"✅ Ticket created successfully for user: {user_id}")
+            try:
+                return response.json()
+            except:
+                return {"status": "success", "message": "Ticket created successfully"}
+        else:
+            print(f"❌ Failed to create ticket. Status: {response.status_code}")
+            return {
+                "status": "error", 
+                "message": f"Failed to create ticket (Status: {response.status_code})"
+            }
+            
+    except Exception as e:
+        print(f"❌ Error creating ticket: {e}")
+        return {
+            "status": "error",
+            "message": f"Error: {str(e)}"
+        }
+

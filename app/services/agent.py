@@ -127,6 +127,25 @@ system_prompt = """You are ISP PayBD Assistant - an AI assistant running inside 
   EN: "I'm here for ISP PayBD services! 😊 I can help with internet, billing, packages, or movie servers."
   BN: "আমি ISP PayBD সার্ভিসের জন্য আছি! 😊 ইন্টারনেট, বিলিং, প্যাকেজ বা মুভি সার্ভার নিয়ে সাহায্য করতে পারি।"
 
+**Troubleshooting & Ticket Rules:**
+1. **Internet Issues:**
+   - FIRST, always use `check_internet_connectivity`.
+   - If the tool suggests a fix (like "Restart Router"), ask the user to try that FIRST.
+   - Say: "I see an issue. Please try restarting your router (unplug for 30s). Does that help?"
+
+2. **Escalation (Creating Tickets):**
+   - ONLY offer a ticket if:
+     a) The user says the troubleshooting steps didn't work.
+     b) The tool shows a critical error (like "Account Inactive" or "Payment Due").
+     c) The user explicitly asks for "support" or "human agent".
+   - Ask: "It seems I can't fix this remotely. Should I create a priority support ticket for our team to check?"
+
+3. **Ticket Creation:**
+   - If user says "Yes":
+     - CALL `create_ticket` tool IMMEDIATELY.
+     - INFER subject/category/priority from context (DO NOT ask user).
+     - After tool success, give a warm, reassuring response: "I've created a ticket! 🎫 Our team has been notified and will contact you very shortly to fix this. Thanks for your patience!"
+
 **Response Style:** Friendly, warm, helpful. Keep replies under 100 words (except movie server lists).
 
 **Tools Available:**
@@ -134,6 +153,7 @@ system_prompt = """You are ISP PayBD Assistant - an AI assistant running inside 
 - check_internet_connectivity (use user_id from context)
 - view_packages (use user_id from context)
 - view_movie_servers (use user_id from context)
+- create_ticket (INFER details from context, do not ask user)
 
 **Example Response:**
 
@@ -181,7 +201,8 @@ async def process_chat(
     message: str, 
     conversation_id: Optional[str] = None,
     user_id: Optional[str] = None, 
-    language: str = "EN"
+    language: str = "EN",
+    chat_history: List = []
 ) -> Dict[str, any]:
     """
     Process chat message and return structured response with metadata
@@ -191,6 +212,7 @@ async def process_chat(
         conversation_id: Unique conversation identifier (will be auto-generated if needed)
         user_id: Optional user ID for context
         language: Language preference (EN or BN)
+        chat_history: List of previous messages for context
     
     Returns:
         Dict containing:
@@ -215,6 +237,7 @@ async def process_chat(
     print(f"🔒 Security Level: {msg_level.upper()}")
     print(f"📂 Category: {msg_category}")
     print(f"💬 User Message: {message}")
+    print(f"📚 History Depth: {len(chat_history)} messages")
     print("="*80 + "\n")
     
     # Build context with user_id and language if provided
@@ -228,9 +251,6 @@ async def process_chat(
     
     # Prepend context to user message
     enhanced_message = f"{context_message} {language_instruction} {message}"
-
-    # For now, using empty chat history - will be loaded from DB in chat endpoint
-    chat_history = []
 
     # Invoke Agent
     print("🤖 AI Processing...\n")
@@ -248,16 +268,28 @@ async def process_chat(
             json_text = raw_output.strip()
             if json_text.startswith('```json'):
                 json_text = json_text[7:]  # Remove ```json
-            if json_text.startswith('```'):
+            elif json_text.startswith('```'):
                 json_text = json_text[3:]  # Remove ```
+            
             if json_text.endswith('```'):
                 json_text = json_text[:-3]  # Remove trailing ```
+            
             json_text = json_text.strip()
             
             # Try to parse
             if json_text.startswith('{'):
                 parsed_response = json.loads(json_text)
+                
+                # Check if 'reply' itself is a JSON string (double encoding fix)
                 ai_reply = parsed_response.get("reply", raw_output)
+                if isinstance(ai_reply, str) and ai_reply.strip().startswith('{'):
+                    try:
+                        inner_json = json.loads(ai_reply)
+                        if "reply" in inner_json:
+                            ai_reply = inner_json["reply"]
+                    except:
+                        pass
+                
                 metadata = parsed_response.get("metadata", {
                     "role": "assistant",
                     "sender": "assistant",

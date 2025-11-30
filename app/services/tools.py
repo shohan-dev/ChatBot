@@ -1,5 +1,5 @@
 from langchain.tools import tool
-from app.db.data import get_user_by_id, check_internet_status, get_subscription_packages, get_movie_servers
+from app.db.data import get_user_by_id, check_internet_status, get_subscription_packages, get_movie_servers, create_support_ticket
 
 @tool
 def search_user_by_id(user_id: str):
@@ -99,5 +99,42 @@ def view_movie_servers(user_id: str):
     """
     return get_movie_servers(user_id)
 
+@tool
+def create_ticket(user_id: str, subject: str, category: str, priority: str, message: str):
+    """
+    Create a support ticket.
+    
+    Args:
+        user_id: The user ID (e.g., "10854")
+        subject: Brief subject of the issue (INFER this from conversation, e.g., "Internet Slow")
+        category: Category (technical, billing, packages, entertainment, other) - INFER this.
+        priority: Priority (low, medium, high, critical) - INFER this.
+        message: Detailed description - INFER this from user's previous messages.
+        
+    Returns:
+        Confirmation message.
+        
+    Use this tool when:
+    - User asks to create a ticket.
+    - You cannot solve the problem and user wants support.
+    - User confirms "yes" to "Should I create a ticket?".
+    
+    IMPORTANT:
+    - DO NOT ask the user for subject, category, or priority.
+    - GENERATE these values yourself based on the chat context.
+    - If user says "my internet is bad", subject="Internet Issue", category="technical", priority="high".
+    """
+    result = create_support_ticket(user_id, subject, category, priority, message)
+    
+    if result.get("status") == "success" or result.get("success") == True:
+        return (
+            "✅ Support Ticket Created Successfully!\n\n"
+            "I've notified our technical team about your issue. They will review it immediately "
+            "and contact you very shortly to resolve this.\n\n"
+            "Thank you for your patience! We're committed to getting you back online as fast as possible. 🚀"
+        )
+    else:
+        return f"Failed to create ticket: {result.get('message', 'Unknown error')}"
+
 # List of tools to be used by the agent
-isp_tools = [search_user_by_id, check_internet_connectivity, view_packages, view_movie_servers]
+isp_tools = [search_user_by_id, check_internet_connectivity, view_packages, view_movie_servers, create_ticket]
