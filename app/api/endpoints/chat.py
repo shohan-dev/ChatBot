@@ -32,7 +32,7 @@ async def chat_endpoint(
     start_time = time.time()
     
     try:
-        print(f"\n🌍 API Request received from client")
+        print(f"\n\033[93m🌍 API Request received from client: {request.message}\033[0m")
         
         # Get or create conversation
         conversation = ChatHistoryManager.get_or_create_conversation(
@@ -112,7 +112,7 @@ async def chat_endpoint(
         )
         
         print(f"💾 Assistant message saved to database (ID: {assistant_message.id})")
-        print(f"✅ Response sent successfully to client\n")
+        print(f"\033[93m✅ Response sent successfully to client: {ai_reply}\033[0m\n")
         
         # Return response with conversation ID
         return ChatResponse(

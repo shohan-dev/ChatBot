@@ -1,5 +1,6 @@
 import os
 import json
+import re
 from typing import List, Dict, Optional
 from datetime import datetime
 import hashlib
@@ -182,6 +183,11 @@ You return:
 **Contact Info (when needed):**
 📞 +8801781808231 | 📧 info@isppaybd.com | 🌐 www.isppaybd.com
 
+Always follow these instructions carefully.
+Try to be concise and clear.
+Try to always answer and not give an empty response. Answer in the user's preferred language.
+
+
 REMEMBER: ALWAYS return valid JSON. The backend depends on this structure to save messages correctly.
 """
 
@@ -229,14 +235,14 @@ async def process_chat(
     
     # Log incoming request
     print("\n" + "="*80)
-    print(f"📥 INCOMING REQUEST")
+    print(f"\033[93m📥 INCOMING REQUEST (Yellow Log)\033[0m")
     print("="*80)
     print(f"🆔 Conversation ID: {conversation_id if conversation_id else 'New conversation'}")
     print(f"👤 User ID: {user_id if user_id else 'Anonymous'}")
     print(f"🌐 Language: {language}")
     print(f"🔒 Security Level: {msg_level.upper()}")
     print(f"📂 Category: {msg_category}")
-    print(f"💬 User Message: {message}")
+    print(f"\033[93m💬 User Message: {message}\033[0m")
     print(f"📚 History Depth: {len(chat_history)} messages")
     print("="*80 + "\n")
     
@@ -261,65 +267,92 @@ async def process_chat(
         })
         
         raw_output = response["output"]
+        print(f"\033[93m📝 Raw AI Output: {raw_output}\033[0m")
         
-        # Try to parse as JSON (handle markdown code blocks)
+        ai_reply = ""
+        metadata = {}
+
+        # Clean markdown
+        clean_text = raw_output.strip()
+        if clean_text.startswith("```json"):
+            clean_text = clean_text[7:]
+        elif clean_text.startswith("```"):
+            clean_text = clean_text[3:]
+        if clean_text.endswith("```"):
+            clean_text = clean_text[:-3]
+        clean_text = clean_text.strip()
+
+        ai_reply = ""
+        metadata = {}
+        
+        # --- FAIL-SAFE PARSING LOGIC ---
+        
+        # 1. Try Standard JSON Parsing
         try:
-            # Remove markdown code blocks if present
-            json_text = raw_output.strip()
-            if json_text.startswith('```json'):
-                json_text = json_text[7:]  # Remove ```json
-            elif json_text.startswith('```'):
-                json_text = json_text[3:]  # Remove ```
-            
-            if json_text.endswith('```'):
-                json_text = json_text[:-3]  # Remove trailing ```
-            
-            json_text = json_text.strip()
-            
-            # Try to parse
-            if json_text.startswith('{'):
-                parsed_response = json.loads(json_text)
-                
-                # Check if 'reply' itself is a JSON string (double encoding fix)
-                ai_reply = parsed_response.get("reply", raw_output)
-                if isinstance(ai_reply, str) and ai_reply.strip().startswith('{'):
-                    try:
-                        inner_json = json.loads(ai_reply)
-                        if "reply" in inner_json:
-                            ai_reply = inner_json["reply"]
-                    except:
-                        pass
-                
-                metadata = parsed_response.get("metadata", {
-                    "role": "assistant",
-                    "sender": "assistant",
-                    "store": True
-                })
+            # Find the first '{' and last '}' to handle extra text
+            start = clean_text.find('{')
+            end = clean_text.rfind('}')
+            if start != -1 and end != -1:
+                json_candidate = clean_text[start:end+1]
+                # Fix trailing commas
+                json_candidate = re.sub(r',\s*([}\]])', r'\1', json_candidate)
+                data = json.loads(json_candidate)
+                ai_reply = data.get("reply", "")
+                metadata = data.get("metadata", {})
             else:
-                # Fallback: wrap plain text response in JSON structure
+                ai_reply = clean_text
+        except json.JSONDecodeError:
+            # 2. Regex Fallback (Extract text inside "reply": "...")
+            # Matches: "reply": "TEXT" (handles newlines and escaped quotes)
+            match = re.search(r'"reply":\s*"(.*?)(?<!\\)"', clean_text, re.DOTALL)
+            if match:
+                ai_reply = match.group(1)
+                # Unescape
+                ai_reply = ai_reply.replace('\\"', '"').replace('\\n', '\n')
+            else:
+                ai_reply = clean_text
+
+        # 3. Double-Check: Did we get a JSON string back? (The "Screenshot Issue")
+        # If ai_reply still looks like {"reply": "..."}, force extract the text
+        if isinstance(ai_reply, str) and ai_reply.strip().startswith('{') and '"reply":' in ai_reply:
+            print("⚠️ Detected raw JSON in reply. Forcing extraction.")
+            # Try to grab just the text value using a loose regex
+            clean_match = re.search(r'"reply":\s*"(.*?)"', ai_reply, re.DOTALL)
+            if clean_match:
+                ai_reply = clean_match.group(1)
+            else:
+                # If regex fails, just strip the braces as a last resort
+                ai_reply = ai_reply.replace('{', '').replace('}', '').replace('"reply":', '').strip().strip('"')
+
+        # 4. FAIL-SAFE: If ai_reply is empty, REVERT to raw_output
+        # This ensures we NEVER show "Sorry..." if the AI actually generated text.
+        if not ai_reply or not ai_reply.strip():
+            if raw_output.strip():
+                print("⚠️ Parsing resulted in empty string. Reverting to raw output.")
                 ai_reply = raw_output
-                metadata = {
-                    "role": "assistant",
-                    "sender": "assistant",
-                    "store": True
-                }
-        except json.JSONDecodeError as e:
-            print(f"⚠️  JSON parse error: {e}")
-            print(f"⚠️  Raw output: {raw_output[:200]}")
-            # If AI doesn't return valid JSON, wrap it
-            ai_reply = raw_output
-            metadata = {
-                "role": "assistant",
-                "sender": "assistant",
-                "store": True
-            }
+            else:
+                # Only use this if the AI truly returned NOTHING
+                ai_reply = "দুঃখিত, আমি উত্তর তৈরি করতে পারিনি। দয়া করে আবার চেষ্টা করুন।"
+
+        # Final cleanup of escaped newlines
+        ai_reply = ai_reply.replace('\\n', '\n').strip()
+
+        # Ensure metadata defaults
+        if not metadata:
+            metadata = {"role": "assistant", "sender": "assistant", "store": True}
+            
+        # Final fallback if empty
+        if not ai_reply or not str(ai_reply).strip():
+            ai_reply = "I apologize, Please try asking again."
+            if language == "BN":
+                ai_reply = "দুঃখিত, দয়া করে আবার চেষ্টা করুন।"
         
         # Calculate response time
         response_time_ms = (time.time() - start_time) * 1000
         
         # Log AI response
         print("\n" + "="*80)
-        print(f"📤 AI RESPONSE")
+        print(f"\033[93m📤 AI RESPONSE (Yellow Log)\033[0m")
         print("="*80)
         print(f"✅ Status: Success")
         print(f"⏱️  Response Time: {response_time_ms:.2f}ms")
@@ -327,7 +360,7 @@ async def process_chat(
         print(f"🔒 Security Level: {msg_level.upper()}")
         print(f"📂 Category: {msg_category}")
         print(f"💾 Store in DB: {metadata.get('store', True)}")
-        print(f"💬 Preview: {ai_reply[:150]}..." if len(ai_reply) > 150 else f"💬 Full Response: {ai_reply}")
+        print(f"\033[93m💬 Full Response: {ai_reply}\033[0m")
         print("="*80 + "\n")
         
         # Return structured response

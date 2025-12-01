@@ -203,8 +203,8 @@ async def get_user_all_messages(
                 msg['language'] = conv['language']
             all_messages.extend(messages_result['messages'])
         
-        # Sort by created_at
-        all_messages.sort(key=lambda x: x['created_at'])
+        # Sort by created_at (Newest first)
+        all_messages.sort(key=lambda x: x['created_at'], reverse=True)
         
         # Limit results
         all_messages = all_messages[:limit]

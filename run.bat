@@ -26,7 +26,7 @@ pip install -r requirements.txt
 :: Run the application
 echo Starting FastAPI Server...
 echo Access the chat at http://127.0.0.1:8000
-@REM uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-uvicorn app.main:app --host 0.0.0.0
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+@REM uvicorn app.main:app --host 0.0.0.0
 
 pause
