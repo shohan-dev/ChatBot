@@ -66,6 +66,6 @@ fi
 echo "🚀 Starting FastAPI Server on 0.0.0.0:$PORT..."
 echo "🌐 Access your chat at http://YOUR_DOMAIN or http://VPS_IP:$PORT"
 
-uvicorn app.main:app --host 0.0.0.0 --port $PORT
+nohup uvicorn app.main:app --host 0.0.0.0 --port $PORT
 
 exit 0
