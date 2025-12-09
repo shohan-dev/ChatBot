@@ -9,3 +9,14 @@
 
 <!-- check port Ocupai -->
 # ss -tulpn | grep :80
+
+<!-- ps() -->
+# ps
+# ps aux | grep python
+# ps aux | grep uvicorn
+# ps aux | grep gunicorn
+# ps aux | grep nginx
+# ps -9 <PID> # kill process
+# pkill -f uvicorn
+# pkill -f gunicorn
+# pkill -f nginx

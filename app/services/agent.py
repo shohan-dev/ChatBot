@@ -410,10 +410,19 @@ async def process_chat(
     except Exception as e:
         error_time_ms = (time.time() - start_time) * 1000
         print(f"❌ Error processing chat: {e}")
-        
-        # Return error response in same structure
+
+        current_language = "Bangla" if language == "BN" else "English"
+        print(f"🌐 Language during error: {current_language}")
+
+        # Choose reply language-aware
+        if language == "BN":
+            reply_text = "দুঃখিত, আমি আপনার অনুরোধ প্রক্রিয়াকরণে একটি ত্রুটি পেয়েছি। অনুগ্রহ করে আবার চেষ্টা করুন।"
+        else:
+            reply_text = "I'm sorry, I encountered an error processing your request. Please try again."
+
+        # Return error response in same structure (language-aware)
         return {
-            "reply": "I'm sorry, I encountered an error processing your request. Please try again.",
+            "reply": reply_text,
             "metadata": {
                 "role": "assistant",
                 "sender": "assistant",
