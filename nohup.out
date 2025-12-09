@@ -72,3 +72,84 @@ INFO:     192.168.0.205:50614 - "GET /api/history/health HTTP/1.1" 200 OK
 INFO:     192.168.0.205:50615 - "GET /api/history/conversations?skip=0&limit=1000 HTTP/1.1" 200 OK
 INFO:     192.168.0.205:50615 - "GET /api/history/statistics/daily?days=30 HTTP/1.1" 200 OK
 INFO:     192.168.0.205:50615 - "GET /api/history/users/10854/messages?skip=0&limit=50 HTTP/1.1" 200 OK
+INFO:     192.168.0.205:51068 - "GET /?user_id=10854&language=BN HTTP/1.1" 200 OK
+/Users/bluebayit/Downloads/isppaybd-main/AI Chatbot/venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:381: UserWarning: Convert_system_message_to_human will be deprecated!
+  warnings.warn("Convert_system_message_to_human will be deprecated!")
+/Users/bluebayit/Downloads/isppaybd-main/AI Chatbot/venv/lib/python3.11/site-packages/langchain_google_genai/chat_models.py:381: UserWarning: Convert_system_message_to_human will be deprecated!
+  warnings.warn("Convert_system_message_to_human will be deprecated!")
+
+[93m🌍 API Request received from client: check my internet status[0m
+💾 User message saved to database (ID: 29)
+
+================================================================================
+[93m📥 INCOMING REQUEST (Yellow Log)[0m
+================================================================================
+🆔 Conversation ID: user_10854_20251209_092850_9ace4315
+👤 User ID: 10854
+🌐 Language: BN
+🔒 Security Level: HIGH
+📂 Category: technical
+[93m💬 User Message: check my internet status[0m
+📚 History Depth: 0 messages
+================================================================================
+
+✅ Auto-Context: User ID 10854 will be used automatically
+
+🌐 Language: Bangla/Bengali selected
+
+🤖 AI Processing...
+
+
+
+[1m> Entering new AgentExecutor chain...[0m
+[32;1m[1;3m
+Invoking: `check_internet_connectivity` with `{'user_id': '10854'}`
+
+
+[0m🔍 Checking internet status for user ID: 10854
+🔍 Fetching user data from API: https://isppaybd.com/api/users/10854
+✅ User data fetched successfully for ID: 10854
+✅ Internet status checked - Issues: 0, Status: conn
+[33;1m[1;3m{'status': 'success', 'user_name': 'SHOHAN', 'subscription_status': 'active', 'account_status': 'active', 'conn_status': 'conn', 'payment_pending': 640, 'will_expire': '2026-01-15 23:14:00', 'issues': ['No issues detected'], 'recommendations': ['Your internet connection appears to be working normally']}[0m[32;1m[1;3m```json
+{
+    "reply": "আপনার ইন্টারনেট সংযোগ সক্রিয় আছে এবং স্বাভাবিকভাবে কাজ করছে। তবে, আপনার ৬৪০ টাকা বিল বকেয়া আছে।",
+    "metadata": {
+        "role": "assistant",
+        "sender": "assistant",
+        "store": true
+    }
+}
+```[0m
+
+[1m> Finished chain.[0m
+[93m📝 Raw AI Output: ```json
+{
+    "reply": "আপনার ইন্টারনেট সংযোগ সক্রিয় আছে এবং স্বাভাবিকভাবে কাজ করছে। তবে, আপনার ৬৪০ টাকা বিল বকেয়া আছে।",
+    "metadata": {
+        "role": "assistant",
+        "sender": "assistant",
+        "store": true
+    }
+}
+```[0m
+
+================================================================================
+[93m📤 AI RESPONSE (Yellow Log)[0m
+================================================================================
+✅ Status: Success
+⏱️  Response Time: 4915.63ms
+📏 Response Length: 97 characters
+🔒 Security Level: HIGH
+📂 Category: technical
+💾 Store in DB: True
+[93m💬 Full Response: আপনার ইন্টারনেট সংযোগ সক্রিয় আছে এবং স্বাভাবিকভাবে কাজ করছে। তবে, আপনার ৬৪০ টাকা বিল বকেয়া আছে।[0m
+================================================================================
+
+💾 Assistant message saved to database (ID: 30)
+[93m✅ Response sent successfully to client: আপনার ইন্টারনেট সংযোগ সক্রিয় আছে এবং স্বাভাবিকভাবে কাজ করছে। তবে, আপনার ৬৪০ টাকা বিল বকেয়া আছে।[0m
+
+INFO:     192.168.0.205:51069 - "POST /api/chat HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [8753]
