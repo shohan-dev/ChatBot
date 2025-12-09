@@ -43,6 +43,16 @@ async def chat_endpoint(
             user_agent=http_request.headers.get("user-agent"),
             ip_address=http_request.client.host if http_request.client else None
         )
+
+        # Ensure we always have a user_id in context by falling back to the stored one
+        effective_user_id = request.user_id or conversation.user_id
+
+        # If a user_id is provided now but missing on the stored conversation, persist it
+        if request.user_id and conversation.user_id != request.user_id:
+            conversation.user_id = request.user_id
+            conversation.session_type = "user"
+            db.commit()
+            db.refresh(conversation)
         
         # Fetch recent chat history for context
         chat_history = []
@@ -85,7 +95,7 @@ async def chat_endpoint(
         ai_response = await process_chat(
             message=request.message,
             conversation_id=conversation.conversation_id,
-            user_id=request.user_id,
+            user_id=effective_user_id,
             language=request.language,
             chat_history=chat_history
         )

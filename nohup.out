@@ -1,0 +1,35 @@
+Key 'title' is not supported in schema, ignoring
+Key 'title' is not supported in schema, ignoring
+Key 'title' is not supported in schema, ignoring
+Key 'title' is not supported in schema, ignoring
+Key 'title' is not supported in schema, ignoring
+Key 'title' is not supported in schema, ignoring
+Key 'title' is not supported in schema, ignoring
+Key 'title' is not supported in schema, ignoring
+Key 'title' is not supported in schema, ignoring
+Key 'title' is not supported in schema, ignoring
+Key 'title' is not supported in schema, ignoring
+Key 'title' is not supported in schema, ignoring
+Key 'title' is not supported in schema, ignoring
+Key 'title' is not supported in schema, ignoring
+INFO:     Started server process [4505]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:80 (Press CTRL+C to quit)
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [4505]
+⚠️  Legacy HistoryManager - Switch to SQLite database
+✅ Database initialized successfully
+✅ Database initialized successfully
+🚀 ISP PayBD AI Chat Backend started
+📊 Database: SQLite with full analytics
+🔗 API endpoints:
+   - POST /api/chat - Main chat endpoint
+   - GET /api/history/conversations - List all conversations
+   - GET /api/history/conversations/{id} - Get conversation messages
+   - GET /api/history/users/{user_id}/conversations - User conversations
+   - GET /api/history/statistics/daily - Daily statistics
+   - GET /api/history/search - Search messages
+   - DELETE /api/history/conversations/{id} - Delete conversation
