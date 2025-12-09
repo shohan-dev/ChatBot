@@ -210,6 +210,26 @@
             opacity: 0.9;
         }
 
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            opacity: 0.95;
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--text-secondary);
+            border: 1px dashed var(--border);
+        }
+
+        .btn-ghost:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
         /* Conversations List */
         .conversations-section {
             background: var(--bg-card);
@@ -368,6 +388,13 @@
             gap: 15px;
             margin: 30px 0;
             padding: 15px 0;
+        }
+
+        .conversation-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
         }
 
         .separator-line {
@@ -678,6 +705,9 @@
                 <button class="btn btn-secondary" onclick="resetFilters()">
                     <span>🔄</span> Reset
                 </button>
+                <button class="btn btn-danger" onclick="clearAllData()">
+                    <span>🧹</span> Clear All Data
+                </button>
             </div>
         </div>
 
@@ -706,9 +736,17 @@
         <div class="messages-view" id="messagesView">
             <div class="messages-header">
                 <h3 id="messagesTitle">Conversation Messages</h3>
-                <button class="btn btn-secondary" onclick="closeMessages()">
-                    <span>✕</span> Close
-                </button>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button class="btn btn-secondary" onclick="clearUserMessages()" title="Delete all conversations for this user">
+                        <span>🗑️</span> Clear User
+                    </button>
+                    <button class="btn btn-danger" onclick="clearAllData()" title="Remove every conversation and message">
+                        <span>🧹</span> Clear All
+                    </button>
+                    <button class="btn btn-secondary" onclick="closeMessages()">
+                        <span>✕</span> Close
+                    </button>
+                </div>
             </div>
             <div class="messages-list" id="messagesList">
                 <div class="loading">
@@ -724,6 +762,15 @@
         let totalPages = 1;
         let currentFilters = {};
         let selectedUserId = null;
+        let messagesState = {
+            userId: null,
+            skip: 0,
+            limit: 50,
+            loading: false,
+            done: false,
+            lastConversationId: null,
+            total: 0
+        };
         let viewMode = 'users'; // 'users' or 'conversations'
 
         // Initialize
@@ -918,100 +965,107 @@
             }
         }
 
-        // View All Messages for a User (Grouped by conversation)
-        async function viewUserMessages(userId) {
-            selectedUserId = userId;
-            const view = document.getElementById('messagesView');
+        function resetMessagesState(userId) {
+            messagesState = {
+                userId,
+                skip: 0,
+                limit: 50,
+                loading: false,
+                done: false,
+                lastConversationId: null,
+                total: 0
+            };
+        }
+
+        function attachMessagesScroll() {
             const list = document.getElementById('messagesList');
-            
-            view.classList.add('active');
-            document.getElementById('messagesTitle').innerHTML = `
-                ${userId === 'Anonymous' ? '👻 Anonymous User' : '👤 User ID: ' + userId} - All Messages
-            `;
-            
-            list.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading all messages...</p></div>';
+            if (!list) return;
+            list.removeEventListener('scroll', onMessagesScroll);
+            list.addEventListener('scroll', onMessagesScroll);
+        }
+
+        function detachMessagesScroll() {
+            const list = document.getElementById('messagesList');
+            if (!list) return;
+            list.removeEventListener('scroll', onMessagesScroll);
+        }
+
+        function onMessagesScroll() {
+            const list = document.getElementById('messagesList');
+            if (!list || messagesState.loading || messagesState.done) return;
+            const threshold = list.scrollHeight - list.clientHeight - 80;
+            if (list.scrollTop >= threshold) {
+                loadUserMessagesPage();
+            }
+        }
+
+        function buildUserMessagesEndpoint(userId) {
+            const params = new URLSearchParams();
+            params.set('skip', messagesState.skip.toString());
+            params.set('limit', messagesState.limit.toString());
+            const base = userId.toLowerCase() === 'anonymous'
+                ? '/api/history/users/anonymous/messages'
+                : `/api/history/users/${encodeURIComponent(userId)}/messages`;
+            return `${base}?${params.toString()}`;
+        }
+
+        async function loadUserMessagesPage(reset = false) {
+            if (messagesState.loading || messagesState.done || !messagesState.userId) return;
+
+            const list = document.getElementById('messagesList');
+            if (!list) return;
+
+            messagesState.loading = true;
+
+            const loadingId = 'messagesLoading';
+            if (!reset && !document.getElementById(loadingId)) {
+                list.insertAdjacentHTML('beforeend', `<div id="${loadingId}" class="loading"><div class="spinner"></div><p>Loading more messages...</p></div>`);
+            }
 
             try {
-                // Use the new dedicated endpoint for all user messages
-                const endpoint = userId === 'Anonymous' 
-                    ? '/api/history/users/anonymous/messages?limit=1000'
-                    : `/api/history/users/${userId}/messages?limit=1000`;
-                
+                const endpoint = buildUserMessagesEndpoint(messagesState.userId);
                 const response = await fetch(endpoint);
-                
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
-                
-                const data = await response.json();
-                console.log('User messages:', data);
 
-                if (!data.messages || data.messages.length === 0) {
-                    list.innerHTML = `
-                        <div class="empty-state">
-                            <div class="empty-state-icon">📭</div>
-                            <h3>No Messages</h3>
-                            <p>This user has no messages yet.</p>
-                        </div>
-                    `;
-                    return;
+                const data = await response.json();
+
+                if (reset) {
+                    list.innerHTML = renderMessagesSummary(data);
+                    messagesState.lastConversationId = null;
+                } else {
+                    const loader = document.getElementById(loadingId);
+                    if (loader) loader.remove();
                 }
 
-                // Group messages by conversation for display
-                let currentConvId = null;
-                let html = `
-                    <div style="padding: 15px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 12px; margin-bottom: 20px;">
-                        <h3 style="margin: 0 0 10px 0;">📊 Summary</h3>
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
-                            <div><strong>${data.total_messages}</strong> messages</div>
-                            <div><strong>${data.conversations_count}</strong> conversations</div>
-                        </div>
-                    </div>
-                `;
-
-                data.messages.forEach((msg) => {
-                    // Add conversation separator if new conversation
-                    if (msg.conversation_id !== currentConvId) {
-                        currentConvId = msg.conversation_id;
-                        html += `
-                            <div class="conversation-separator">
-                                <span class="separator-line"></span>
-                                <span class="separator-text">
-                                    📝 Conversation: ${msg.conversation_id.slice(0, 35)}...
-                                    <br>
-                                    <small>Started: ${formatDateTime(msg.conversation_created)} | Language: ${msg.language}</small>
-                                </span>
-                                <span class="separator-line"></span>
+                if (!data.messages || data.messages.length === 0) {
+                    if (reset) {
+                        list.innerHTML = `
+                            <div class="empty-state">
+                                <div class="empty-state-icon">📭</div>
+                                <h3>No Messages</h3>
+                                <p>This user has no messages yet.</p>
                             </div>
                         `;
                     }
+                    messagesState.done = true;
+                    return;
+                }
 
-                    html += `
-                        <div class="message-item ${msg.role}">
-                            <div class="message-avatar ${msg.role}">
-                                ${msg.role === 'user' ? '👤' : '🤖'}
-                            </div>
-                            <div class="message-content">
-                                <div class="message-header">
-                                    <span class="message-sender">${msg.role === 'user' ? 'User' : 'AI Assistant'}</span>
-                                    <span class="message-time">${formatDateTime(msg.created_at)}</span>
-                                </div>
-                                <div class="message-text">${escapeHtml(msg.content)}</div>
-                                <div class="message-meta">
-                                    <span class="message-meta-item level-${msg.message_level}">
-                                        🔒 ${msg.message_level.toUpperCase()}
-                                    </span>
-                                    ${msg.category ? `<span class="message-meta-item">📂 ${msg.category}</span>` : ''}
-                                    ${msg.tokens_used > 0 ? `<span class="message-meta-item">🪙 ${msg.tokens_used} tokens</span>` : ''}
-                                    ${msg.response_time_ms > 0 ? `<span class="message-meta-item">⏱️ ${Math.round(msg.response_time_ms)}ms</span>` : ''}
-                                </div>
-                            </div>
+                list.insertAdjacentHTML('beforeend', renderMessages(data.messages));
+
+                messagesState.skip += data.messages.length;
+                messagesState.total = data.total_messages || messagesState.total;
+                messagesState.done = !data.has_more;
+
+                if (messagesState.done) {
+                    list.insertAdjacentHTML('beforeend', `
+                        <div class="loading" style="opacity: 0.7;">
+                            <p>End of messages</p>
                         </div>
-                    `;
-                });
-
-                list.innerHTML = html;
-
+                    `);
+                }
             } catch (error) {
                 console.error('Error loading user messages:', error);
                 list.innerHTML = `
@@ -1019,18 +1073,180 @@
                         <div class="empty-state-icon">❌</div>
                         <h3>Error Loading Messages</h3>
                         <p>${error.message}</p>
-                        <button class="btn btn-primary" onclick="viewUserMessages('${userId}')" style="margin-top: 15px;">
+                        <button class="btn btn-primary" onclick="viewUserMessages('${messagesState.userId || ''}')" style="margin-top: 15px;">
                             🔄 Try Again
                         </button>
                     </div>
                 `;
+                messagesState.done = true;
+            } finally {
+                const loader = document.getElementById('messagesLoading');
+                if (loader) loader.remove();
+                messagesState.loading = false;
             }
+        }
+
+        function renderMessagesSummary(data) {
+            return `
+                <div style="padding: 15px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 12px; margin-bottom: 20px;">
+                    <h3 style="margin: 0 0 10px 0;">📊 Summary</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+                        <div><strong>${data.total_messages || 0}</strong> messages</div>
+                        <div><strong>${data.conversations_count || 0}</strong> conversations</div>
+                        <div><strong>${data.page || 1}</strong> / ${data.total_pages || 1} pages</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderMessages(messages) {
+            let html = '';
+            messages.forEach((msg) => {
+                if (msg.conversation_id !== messagesState.lastConversationId) {
+                    messagesState.lastConversationId = msg.conversation_id;
+                    html += `
+                        <div class="conversation-separator">
+                            <span class="separator-line"></span>
+                            <span class="separator-text">
+                                📝 Conversation: ${msg.conversation_id.slice(0, 35)}...
+                                <br>
+                                <small>Started: ${formatDateTime(msg.conversation_created)} | Language: ${msg.language || 'N/A'}</small>
+                            </span>
+                            <div class="conversation-actions">
+                                <button class="btn btn-ghost" onclick="deleteConversation('${msg.conversation_id}')" title="Delete only this conversation">
+                                    🗑️ Delete Conversation
+                                </button>
+                            </div>
+                            <span class="separator-line"></span>
+                        </div>
+                    `;
+                }
+
+                html += renderMessageItem(msg);
+            });
+            return html;
+        }
+
+        function renderMessageItem(msg) {
+            return `
+                <div class="message-item ${msg.role}" id="message-${msg.id}">
+                    <div class="message-avatar ${msg.role}">
+                        ${msg.role === 'user' ? '👤' : '🤖'}
+                    </div>
+                    <div class="message-content">
+                        <div class="message-header">
+                            <span class="message-sender">${msg.role === 'user' ? 'User' : 'AI Assistant'}</span>
+                            <span class="message-time">${formatDateTime(msg.created_at)}</span>
+                        </div>
+                        <div class="message-text">${escapeHtml(msg.content)}</div>
+                        <div class="message-meta">
+                            <span class="message-meta-item level-${msg.message_level}">
+                                🔒 ${msg.message_level ? msg.message_level.toUpperCase() : 'UNKNOWN'}
+                            </span>
+                            ${msg.category ? `<span class="message-meta-item">📂 ${msg.category}</span>` : ''}
+                            ${msg.tokens_used > 0 ? `<span class="message-meta-item">🪙 ${msg.tokens_used} tokens</span>` : ''}
+                            ${msg.response_time_ms > 0 ? `<span class="message-meta-item">⏱️ ${Math.round(msg.response_time_ms)}ms</span>` : ''}
+                        </div>
+                        <div class="conversation-actions" style="margin-top: 8px;">
+                            <button class="btn btn-ghost" onclick="deleteSingleMessage(${msg.id})" title="Delete this message">
+                                🗑️ Delete Message
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // View All Messages for a User with infinite scroll
+        async function viewUserMessages(userId) {
+            selectedUserId = userId;
+            const view = document.getElementById('messagesView');
+            const list = document.getElementById('messagesList');
+            
+            view.classList.add('active');
+            document.getElementById('messagesTitle').innerHTML = `
+                ${userId === 'Anonymous' ? '👻 Anonymous User' : '👤 User ID: ' + userId} - Messages
+            `;
+
+            resetMessagesState(userId);
+            list.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading messages...</p></div>';
+
+            await loadUserMessagesPage(true);
+            attachMessagesScroll();
         }
 
         // Close Messages View
         function closeMessages() {
             document.getElementById('messagesView').classList.remove('active');
             selectedUserId = null;
+            detachMessagesScroll();
+            resetMessagesState(null);
+        }
+
+        async function deleteConversation(conversationId) {
+            if (!conversationId) return;
+            const confirmDelete = confirm('Delete this conversation and its messages?');
+            if (!confirmDelete) return;
+
+            try {
+                const res = await fetch(`/api/history/conversations/${encodeURIComponent(conversationId)}`, { method: 'DELETE' });
+                if (!res.ok) throw new Error(`Delete failed (${res.status})`);
+                if (selectedUserId) {
+                    await viewUserMessages(selectedUserId);
+                } else {
+                    await loadUsersList();
+                }
+            } catch (error) {
+                alert(`Could not delete conversation: ${error.message}`);
+            }
+        }
+
+        async function deleteSingleMessage(messageId) {
+            if (!messageId) return;
+            const confirmDelete = confirm('Delete this message?');
+            if (!confirmDelete) return;
+
+            try {
+                const res = await fetch(`/api/history/messages/${messageId}`, { method: 'DELETE' });
+                if (!res.ok) throw new Error(`Delete failed (${res.status})`);
+                const el = document.getElementById(`message-${messageId}`);
+                if (el) el.remove();
+            } catch (error) {
+                alert(`Could not delete message: ${error.message}`);
+            }
+        }
+
+        async function clearUserMessages() {
+            if (!selectedUserId) {
+                alert('Open a user to clear their history first.');
+                return;
+            }
+            const confirmDelete = confirm(`Delete all conversations for ${selectedUserId}?`);
+            if (!confirmDelete) return;
+
+            try {
+                const res = await fetch(`/api/history/users/${encodeURIComponent(selectedUserId)}/messages`, { method: 'DELETE' });
+                if (!res.ok) throw new Error(`Delete failed (${res.status})`);
+                await loadUsersList();
+                closeMessages();
+            } catch (error) {
+                alert(`Could not clear user history: ${error.message}`);
+            }
+        }
+
+        async function clearAllData() {
+            const confirmDelete = confirm('This will remove ALL conversations and messages. Continue?');
+            if (!confirmDelete) return;
+            try {
+                const res = await fetch('/api/history/purge?confirm=true', { method: 'DELETE' });
+                if (!res.ok) throw new Error(`Purge failed (${res.status})`);
+                await loadUsersList();
+                closeMessages();
+                loadStatistics();
+                alert('All chat data has been cleared.');
+            } catch (error) {
+                alert(`Could not clear all data: ${error.message}`);
+            }
         }
 
         // Apply Filters

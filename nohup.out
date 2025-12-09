@@ -12,14 +12,12 @@ Key 'title' is not supported in schema, ignoring
 Key 'title' is not supported in schema, ignoring
 Key 'title' is not supported in schema, ignoring
 Key 'title' is not supported in schema, ignoring
-INFO:     Started server process [4505]
+INFO:     Started server process [7996]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:80 (Press CTRL+C to quit)
-INFO:     Shutting down
+ERROR:    [Errno 48] error while attempting to bind on address ('0.0.0.0', 8000): address already in use
 INFO:     Waiting for application shutdown.
 INFO:     Application shutdown complete.
-INFO:     Finished server process [4505]
 ⚠️  Legacy HistoryManager - Switch to SQLite database
 ✅ Database initialized successfully
 ✅ Database initialized successfully
@@ -33,3 +31,44 @@ INFO:     Finished server process [4505]
    - GET /api/history/statistics/daily - Daily statistics
    - GET /api/history/search - Search messages
    - DELETE /api/history/conversations/{id} - Delete conversation
+Key 'title' is not supported in schema, ignoring
+Key 'title' is not supported in schema, ignoring
+Key 'title' is not supported in schema, ignoring
+Key 'title' is not supported in schema, ignoring
+Key 'title' is not supported in schema, ignoring
+Key 'title' is not supported in schema, ignoring
+Key 'title' is not supported in schema, ignoring
+Key 'title' is not supported in schema, ignoring
+Key 'title' is not supported in schema, ignoring
+Key 'title' is not supported in schema, ignoring
+Key 'title' is not supported in schema, ignoring
+Key 'title' is not supported in schema, ignoring
+Key 'title' is not supported in schema, ignoring
+Key 'title' is not supported in schema, ignoring
+INFO:     Started server process [8753]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:80 (Press CTRL+C to quit)
+⚠️  Legacy HistoryManager - Switch to SQLite database
+✅ Database initialized successfully
+✅ Database initialized successfully
+🚀 ISP PayBD AI Chat Backend started
+📊 Database: SQLite with full analytics
+🔗 API endpoints:
+   - POST /api/chat - Main chat endpoint
+   - GET /api/history/conversations - List all conversations
+   - GET /api/history/conversations/{id} - Get conversation messages
+   - GET /api/history/users/{user_id}/conversations - User conversations
+   - GET /api/history/statistics/daily - Daily statistics
+   - GET /api/history/search - Search messages
+   - DELETE /api/history/conversations/{id} - Delete conversation
+INFO:     192.168.0.205:50491 - "GET /history HTTP/1.1" 200 OK
+INFO:     192.168.0.205:50491 - "GET /api/history/health HTTP/1.1" 200 OK
+INFO:     192.168.0.205:50492 - "GET /api/history/conversations?skip=0&limit=1000 HTTP/1.1" 200 OK
+INFO:     192.168.0.205:50492 - "GET /api/history/statistics/daily?days=30 HTTP/1.1" 200 OK
+INFO:     192.168.0.205:50492 - "GET /api/history/users/10854/messages?skip=0&limit=50 HTTP/1.1" 200 OK
+INFO:     192.168.0.205:50614 - "GET /history HTTP/1.1" 200 OK
+INFO:     192.168.0.205:50614 - "GET /api/history/health HTTP/1.1" 200 OK
+INFO:     192.168.0.205:50615 - "GET /api/history/conversations?skip=0&limit=1000 HTTP/1.1" 200 OK
+INFO:     192.168.0.205:50615 - "GET /api/history/statistics/daily?days=30 HTTP/1.1" 200 OK
+INFO:     192.168.0.205:50615 - "GET /api/history/users/10854/messages?skip=0&limit=50 HTTP/1.1" 200 OK

@@ -268,6 +268,70 @@ class ChatHistoryManager:
         return ChatHistoryManager.get_all_conversations(
             db, skip, limit, user_id=user_id
         )
+
+    @staticmethod
+    def get_user_messages_paginated(
+        db: Session,
+        user_id: str,
+        skip: int = 0,
+        limit: int = 50
+    ) -> Dict[str, Any]:
+        """Return paginated messages across all conversations for a user"""
+        # Build base query joining conversations for metadata in one trip
+        base_query = db.query(Message, Conversation).join(
+            Conversation, Conversation.conversation_id == Message.conversation_id
+        )
+
+        if user_id.lower() == "anonymous":
+            base_query = base_query.filter(Conversation.session_type == "anonymous")
+        else:
+            base_query = base_query.filter(Conversation.user_id == user_id)
+
+        total_messages = base_query.count()
+        conversations_count = base_query.with_entities(
+            Conversation.conversation_id
+        ).distinct().count()
+
+        results = (
+            base_query.order_by(Message.created_at)
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+
+        messages = []
+        for msg, conv in results:
+            messages.append(
+                {
+                    "id": msg.id,
+                    "conversation_id": msg.conversation_id,
+                    "role": msg.role,
+                    "sender": msg.sender,
+                    "content": msg.content,
+                    "message_index": msg.message_index,
+                    "message_level": msg.message_level,
+                    "category": msg.category,
+                    "tokens_used": msg.tokens_used,
+                    "response_time_ms": msg.response_time_ms,
+                    "tools_used": json.loads(msg.tools_used) if msg.tools_used else [],
+                    "api_calls_made": msg.api_calls_made,
+                    "created_at": msg.created_at.isoformat(),
+                    "conversation_created": conv.created_at.isoformat() if conv else None,
+                    "language": conv.language if conv else None,
+                }
+            )
+
+        return {
+            "user_id": user_id,
+            "total_messages": total_messages,
+            "conversations_count": conversations_count,
+            "page": (skip // limit) + 1,
+            "per_page": limit,
+            "total_pages": (total_messages + limit - 1) // limit,
+            "has_more": (skip + limit) < total_messages,
+            "next_skip": (skip + limit) if (skip + limit) < total_messages else None,
+            "messages": messages,
+        }
     
     @staticmethod
     def get_daily_statistics(
@@ -388,6 +452,78 @@ class ChatHistoryManager:
             db.commit()
             return True
         return False
+
+    @staticmethod
+    def delete_message(db: Session, message_id: int) -> bool:
+        """Delete a single message and update conversation counters"""
+        message = db.query(Message).filter(Message.id == message_id).first()
+        if not message:
+            return False
+
+        conversation = db.query(Conversation).filter(
+            Conversation.conversation_id == message.conversation_id
+        ).first()
+
+        # Remove message and keep conversation metadata consistent
+        db.delete(message)
+        if conversation:
+            conversation.total_messages = max((conversation.total_messages or 1) - 1, 0)
+            conversation.total_tokens_used = max(
+                (conversation.total_tokens_used or 0) - (message.tokens_used or 0), 0
+            )
+            conversation.updated_at = datetime.utcnow()
+
+        db.commit()
+        return True
+
+    @staticmethod
+    def delete_user_messages(db: Session, user_id: str) -> Dict[str, Any]:
+        """Delete all conversations and messages for a user (or anonymous pool)"""
+        if user_id.lower() == "anonymous":
+            conversations = db.query(Conversation).filter(Conversation.session_type == "anonymous").all()
+        else:
+            conversations = db.query(Conversation).filter(Conversation.user_id == user_id).all()
+
+        if not conversations:
+            return {"deleted_conversations": 0, "deleted_messages": 0}
+
+        deleted_messages = 0
+        for conv in conversations:
+            deleted_messages += len(conv.messages)
+            db.delete(conv)
+
+        # Clear daily statistics for this user/anonymous bucket
+        stats_query = db.query(DailyStatistics)
+        if user_id.lower() == "anonymous":
+            stats_query = stats_query.filter(DailyStatistics.user_id.is_(None))
+        else:
+            stats_query = stats_query.filter(DailyStatistics.user_id == user_id)
+        stats_query.delete(synchronize_session=False)
+
+        db.commit()
+
+        return {
+            "deleted_conversations": len(conversations),
+            "deleted_messages": deleted_messages
+        }
+
+    @staticmethod
+    def purge_all_data(db: Session) -> Dict[str, int]:
+        """Remove all conversations, messages, and daily statistics"""
+        total_messages = db.query(Message).count()
+        total_conversations = db.query(Conversation).count()
+        total_stats = db.query(DailyStatistics).count()
+
+        db.query(Message).delete(synchronize_session=False)
+        db.query(Conversation).delete(synchronize_session=False)
+        db.query(DailyStatistics).delete(synchronize_session=False)
+        db.commit()
+
+        return {
+            "deleted_messages": total_messages,
+            "deleted_conversations": total_conversations,
+            "deleted_stats": total_stats
+        }
     
     @staticmethod
     def search_messages(

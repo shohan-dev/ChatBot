@@ -153,7 +153,8 @@ async def get_user_conversations(
 @router.get("/users/{user_id}/messages")
 async def get_user_all_messages(
     user_id: str,
-    limit: int = Query(500, ge=1, le=1000, description="Maximum number of messages to return"),
+    skip: int = Query(0, ge=0, description="Number of messages to skip"),
+    limit: int = Query(50, ge=1, le=200, description="Number of messages to return"),
     db: Session = Depends(get_db)
 ):
     """
@@ -163,58 +164,19 @@ async def get_user_all_messages(
     - user_id: User identifier (use 'anonymous' for anonymous users)
     
     **Query Parameters:**
-    - limit: Maximum messages to return (default: 500, max: 1000)
+    - skip: Pagination offset (default: 0)
+    - limit: Results per page (default: 50, max: 200)
     
     **Returns:**
-    - user_id: User identifier
-    - total_messages: Total message count
-    - conversations_count: Number of conversations
-    - messages: Array of all messages with conversation info
+    - Paginated message collection with metadata
     """
     try:
-        # Get all user conversations
-        if user_id.lower() == 'anonymous':
-            conversations_result = ChatHistoryManager.get_all_conversations(
-                db=db,
-                skip=0,
-                limit=1000,
-                session_type='anonymous'
-            )
-        else:
-            conversations_result = ChatHistoryManager.get_user_conversations(
-                db=db,
-                user_id=user_id,
-                skip=0,
-                limit=1000
-            )
-        
-        all_messages = []
-        for conv in conversations_result['conversations']:
-            messages_result = ChatHistoryManager.get_conversation_messages(
-                db=db,
-                conversation_id=conv['conversation_id'],
-                skip=0,
-                limit=500
-            )
-            # Add conversation metadata to each message
-            for msg in messages_result['messages']:
-                msg['conversation_id'] = conv['conversation_id']
-                msg['conversation_created'] = conv['created_at']
-                msg['language'] = conv['language']
-            all_messages.extend(messages_result['messages'])
-        
-        # Sort by created_at (Newest first)
-        all_messages.sort(key=lambda x: x['created_at'], reverse=True)
-        
-        # Limit results
-        all_messages = all_messages[:limit]
-        
-        return {
-            "user_id": user_id,
-            "total_messages": len(all_messages),
-            "conversations_count": len(conversations_result['conversations']),
-            "messages": all_messages
-        }
+        return ChatHistoryManager.get_user_messages_paginated(
+            db=db,
+            user_id=user_id,
+            skip=skip,
+            limit=limit
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching user messages: {str(e)}")
 
@@ -324,6 +286,74 @@ async def delete_conversation(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting conversation: {str(e)}")
+
+
+@router.delete("/messages/{message_id}")
+async def delete_message(
+    message_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Delete a single message
+    
+    **Path Parameters:**
+    - message_id: Message primary key
+    
+    **Returns:**
+    - success: Boolean indicating deletion success
+    - message: Status message
+    """
+    try:
+        success = ChatHistoryManager.delete_message(db, message_id)
+        if success:
+            return {"success": True, "message": f"Message {message_id} deleted"}
+        raise HTTPException(status_code=404, detail=f"Message {message_id} not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting message: {str(e)}")
+
+
+@router.delete("/users/{user_id}/messages")
+async def delete_user_messages(
+    user_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Delete all messages (and conversations) for a user or anonymous sessions
+    
+    **Path Parameters:**
+    - user_id: User identifier, or "anonymous" to clear anonymous pool
+    """
+    try:
+        result = ChatHistoryManager.delete_user_messages(db, user_id)
+        return {
+            "success": True,
+            "user_id": user_id,
+            "deleted_conversations": result.get("deleted_conversations", 0),
+            "deleted_messages": result.get("deleted_messages", 0)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting user messages: {str(e)}")
+
+
+@router.delete("/purge")
+async def purge_all_data(
+    confirm: bool = Query(False, description="Must be true to confirm full deletion"),
+    db: Session = Depends(get_db)
+):
+    """
+    Delete all conversations, messages, and statistics. Use with caution.
+    Set `confirm=true` to execute.
+    """
+    if not confirm:
+        raise HTTPException(status_code=400, detail="Set confirm=true to purge all data")
+
+    try:
+        result = ChatHistoryManager.purge_all_data(db)
+        return {"success": True, **result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error purging data: {str(e)}")
 
 
 @router.get("/health")
